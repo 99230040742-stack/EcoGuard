@@ -12,3 +12,10 @@ DISABLE_AI = os.environ.get("DISABLE_AI", "0") == "1"
 if DISABLE_AI:
     print("DISABLE_AI=1 -> skipping heavy ML imports and model loading")
 # --- end bootstrap ---
+from main1 import app
+app = Flask(__name__)
+import os
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port) 
