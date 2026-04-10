@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %} Edit Complaint {% endblock title %}
+
+{% block body %}
+<div class="container mt-4">
+    <h2 class="text-center bg-primary text-white p-2">Edit Complaint</h2>
+    <br>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if current_user.is_admin %}
+    <form action="" method="POST" class="jumbotron">
+        <div class="form-group">
+            <label for="email" class="font-weight-bold">Email</label>
+            <input type="email" class="form-control" id="email" name="email" value="{{ posts.email }}" readonly>
+        </div>
+
+        <div class="form-group">
+            <label for="message" class="font-weight-bold">Message</label>
+            <textarea class="form-control" id="message" name="message" rows="5">{{ posts.message }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="date" class="font-weight-bold">Date</label>
+            <input type="date" class="form-control" id="date" name="date" value="{{ posts.date }}">
+        </div>
+
+        <div class="form-group">
+            <label for="image" class="font-weight-bold">Image</label>
+            <input type="text" class="form-control" id="image" name="image" value="{{ posts.image }}">
+        </div>
+
+        <div class="form-group">
+            <label for="status" class="font-weight-bold">Status</label>
+            <select class="form-control" id="status" name="status">
+                <option value="Submitted" {% if posts.status == "Submitted" %}selected{% endif %}>Submitted</option>
+                <option value="In Progress" {% if posts.status == "In Progress" %}selected{% endif %}>In Progress</option>
+                <option value="Completed" {% if posts.status == "Completed" %}selected{% endif %}>Completed</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-success btn-block">Update</button>
+    </form>
+    {% else %}
+    <div class="alert alert-warning">You are not authorized to edit this complaint.</div>
+    {% endif %}
+</div>
+{% endblock body %}

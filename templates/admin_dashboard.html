@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #eaf4ec;
+      background-image: url('https://images.unsplash.com/photo-1728558241096-8314965b28e4?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2xlYW4lMjBjaXR5JTIwcGxhbmV8ZW58MHx8MHx8fDA%3D&auto=format&fit=crop&q=60&w=600');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      position: relative;
+      min-height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      /* lighten overlay for maximum clarity */
+      background: linear-gradient(to bottom right, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+      pointer-events: none;
+    }
+    .container, .card, .section-card, .dropdown-menu, .accordion, .table {
+      background: rgba(255,255,255,0.98);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    /* Solid panel for table section to isolate from background image */
+    .table-panel {
+      background: #ffffff !important; /* pure white */
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.10); /* softer shadow for brighter feel */
+      padding: 1.25rem 1.5rem;
+    }
+    body, .table {
+      color: #1f2937;
+    }
+    /* Complaints table: Option A — bolder (pure white, thicker borders) */
+    .table {
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+    }
+    .table thead {
+      background: #ffffff !important; /* brightest header */
+    }
+    .table thead th {
+      color: #0b1220; /* strong readable text */
+      font-weight: 600;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .table-head-light th { background: #ffffff !important; color: #0b1220 !important; }
+    .table tbody tr { background: #ffffff; }
+    .table tbody tr:hover { background: #fdfdff; }
+    .table td, .table th {
+      color: #0b1220;
+      border: 0;
+      padding: 1.1rem 1.35rem;
+    }
+
+    /* thicker whitespace */
+    .container { padding: 2rem !important; }
+    .accordion .card { margin-bottom: 1rem; }
+    .card-header { padding: 0.9rem 1.25rem; }
+    .card-body { padding: 1.25rem 1.5rem; }
+  </style>
+</head>
+<body class="p-4 bg-light">
+
+  <h2 class="text-center mb-4">Admin Dashboard</h2>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="container mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Dedupe review + backfill controls -->
+  {% if current_user.is_admin %}
+  <div class="container mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="m-0">Duplicate Review</h5>
+      <div>
+        <a href="{{ url_for('admin_dedupe_review') }}" class="btn btn-sm btn-outline-secondary">Refresh candidates</a>
+        <a href="{{ url_for('admin_backfill_hashes', limit=500) }}" class="btn btn-sm btn-outline-primary">Backfill hashes (500)</a>
+      </div>
+    </div>
+    {% if dedupe_candidates is not none %}
+      {% if dedupe_candidates %}
+        <div class="accordion mt-3" id="dupAcc">
+          {% for grp in dedupe_candidates %}
+          <div class="card mb-2">
+            <div class="card-header py-2">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <span class="badge bg-info text-dark">{{ grp.type }}</span>
+                  <small class="text-muted">{{ grp.key }}</small>
+                </div>
+              </div>
+            </div>
+            <div class="card-body p-2">
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-2">
+                  <thead class="table-light">
+                    <tr class="text-center">
+                      <th>CID</th>
+                      <th>Email</th>
+                      <th>Pincode</th>
+                      <th>Date</th>
+                      <th>Category</th>
+                      <th>Image</th>
+                      <th>Mark duplicate of</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for c in grp['items'] %}
+                    <tr>
+                      <td class="text-center">
+            #{{ c.cid }}
+            {% if c.duplicate_of %}
+              <div><span class="badge bg-secondary">Duplicate of #{{ c.duplicate_of }}</span></div>
+            {% endif %}
+          </td>
+                      <td>{{ c.email }}</td>
+                      <td class="text-center">{{ c.pincode or '—' }}</td>
+                      <td>{{ c.date }}</td>
+                      <td>{{ c.category or '—' }}</td>
+                      <td class="text-center">
+                        {% if c.image %}
+                          <a href="{{ url_for('static', filename='uploads/' ~ c.image) }}" target="_blank">View</a>
+                        {% else %}
+                          —
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if c.status == 'Duplicate' or c.duplicate_of %}
+                          <button class="btn btn-sm btn-secondary" type="button" disabled>Already duplicate</button>
+                        {% else %}
+                        <form action="{{ url_for('admin_mark_duplicate') }}" method="post" class="form-inline">
+                          <input type="hidden" name="dup_id" value="{{ c.cid }}" />
+                          <select name="primary_id" class="form-control form-control-sm me-2">
+                            {% for p in grp['items'] %}
+                              {% if p.cid != c.cid and not p.duplicate_of %}
+                                <option value="{{ p.cid }}">#{{ p.cid }}</option>
+                              {% endif %}
+                            {% endfor %}
+                          </select>
+                          <button class="btn btn-sm btn-danger" type="submit">Mark duplicate</button>
+                        </form>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-secondary mt-3">No duplicate candidates yet. Click "Backfill hashes" or submit some test duplicates, then Refresh.</div>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="container mb-4">
+    <div class="row g-3">
+      <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0">
+          <div class="card-body text-center">
+            <div class="text-muted small">Total</div>
+            <div class="h4 mb-0">{{ comp|length }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0">
+          <div class="card-body text-center">
+            <div class="text-muted small">Resolved</div>
+            <div class="h4 mb-0">{{ comp|selectattr('status','equalto','Resolved')|list|length }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0">
+          <div class="card-body text-center">
+            <div class="text-muted small">In Progress</div>
+            <div class="h4 mb-0">{{ comp|selectattr('status','equalto','In Progress')|list|length }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0">
+          <div class="card-body text-center">
+            <div class="text-muted small">AI Verified</div>
+            <div class="h4 mb-0">{{ comp|selectattr('ai_verified')|list|length }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mb-3">
+    <div class="input-group">
+      <div class="input-group-prepend">
+        <span class="input-group-text">Search</span>
+      </div>
+      <input id="complaintSearch" type="text" class="form-control" placeholder="Search by email, message, category, pincode, NGO...">
+    </div>
+  </div>
+
+  <div class="container mb-4">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-white fw-bold">Top NGOs</div>
+          <ul class="list-group list-group-flush">
+            {% if top_ngos %}
+              {% for name, pts, lvl in top_ngos %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ name }}</span>
+                <span class="badge bg-primary">Lvl {{ lvl }}</span>
+                <span class="badge bg-success">{{ pts }} pts</span>
+              </li>
+              {% endfor %}
+            {% else %}
+              <li class="list-group-item text-muted">No NGO stats yet</li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-white fw-bold">Top Users</div>
+          <ul class="list-group list-group-flush">
+            {% if top_users %}
+              {% for uname, pts, lvl in top_users %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ uname }}</span>
+                <span class="badge bg-primary">Lvl {{ lvl }}</span>
+                <span class="badge bg-success">{{ pts }} pts</span>
+              </li>
+              {% endfor %}
+            {% else %}
+              <li class="list-group-item text-muted">No user stats yet</li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container table-panel">
+    <table class="table table-bordered table-striped table-hover align-middle">
+      <thead class="text-center table-head-light">
+        <tr>
+          <th>ID</th>
+          <th>Email</th>
+          <th>Message</th>
+          <th>Date</th>
+          <th>Image</th>
+          <th>Category</th>
+          <th>Pincode</th>
+          <th>AI Verification</th>
+          <th>NGO Update</th>
+          <th>Update Status</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for c in comp %}
+        <tr>
+          <td class="text-center">
+            {{ c.cid }}
+            {% if c.status == 'Duplicate' or c.duplicate_of %}
+              <div>
+                {% if c.duplicate_of %}
+                  <a class="badge bg-secondary text-decoration-none" href="#complaint-{{ c.duplicate_of }}">Duplicate of #{{ c.duplicate_of }}</a>
+                {% else %}
+                  <span class="badge bg-secondary">Duplicate</span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </td>
+          <td>{{ c.email }}</td>
+          <td>{{ c.title or c.message[:100] }}</td>
+          <td>{{ c.date }}</td>
+          <td class="text-center">
+            {% if c.image %}
+              <a href="{{ url_for('static', filename='uploads/' ~ c.image) }}" target="_blank">View</a>
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>{{ c.category or '—' }}</td>
+          <td>
+  {{ c.pincode or '—' }}
+  {% if c.pincode %}
+    <a href="{{ url_for('pincode_map', pincode=c.pincode) }}" target="_blank" class="ml-1">Map</a>
+  {% endif %}
+</td>
+          <td class="text-center">
+            {% if c.ai_verified %}
+              <span class="badge bg-success">AI-Verified</span>
+              <small>({{ '%.2f'|format(c.ai_confidence or 0) }})</small>
+            {% else %}
+              <span class="badge bg-danger">AI-Unverified</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% set info = assign_map.get(c.cid) %}
+            {% if info %}
+              <span class="badge bg-info">{{ info.status }}</span>
+              <div><small>by {{ info.ngo_name }}</small></div>
+              <div><small>{{ info.updated_at }}</small></div>
+            {% else %}
+              <span class="text-muted">No NGO update</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if c.status == 'Duplicate' or c.duplicate_of %}
+              <form method="POST" action="{{ url_for('admin_undo_duplicate') }}" class="d-flex justify-content-center">
+                <input type="hidden" name="dup_id" value="{{ c.cid }}">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">Undo duplicate</button>
+              </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('update_status', cid=c.cid) }}" class="d-flex justify-content-center">
+              <select name="status" class="form-select form-select-sm w-auto me-2">
+                <option value="Submitted" {% if c.status == 'Submitted' %}selected{% endif %}>Submitted</option>
+                <option value="In Progress" {% if c.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                <option value="Verified" {% if c.status == 'Verified' %}selected{% endif %}>Verified</option>
+                <option value="Resolved" {% if c.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm">Update</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+
+  <div class="text-center">
+    <a href="{{ url_for('logout') }}" class="btn btn-outline-danger mt-3">Logout</a>
+  </div>
+
+  <div class="container mt-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white fw-bold">Manual Assignment</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin_assign') }}" class="row g-3 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label">Complaint</label>
+            <select name="complaint_id" class="form-select form-select-sm">
+              {% for c in comp %}
+              <option value="{{ c.cid }}">#{{ c.cid }} - {{ c.category or '—' }} - {{ c.pincode or '—' }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">NGO</label>
+            <select name="ngo_id" class="form-select form-select-sm">
+              {% for n in ngos %}
+              <option value="{{ n.id }}">{{ n.name }} ({{ n.coverage_pincodes }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary">Assign</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const input = document.getElementById('complaintSearch');
+      if (!input) return;
+      input.addEventListener('input', function(){
+        const term = this.value.toLowerCase();
+        document.querySelectorAll('table tbody tr').forEach(function(row){
+          const text = row.innerText.toLowerCase();
+          row.style.display = text.indexOf(term) > -1 ? '' : 'none';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
